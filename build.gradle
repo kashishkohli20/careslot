@@ -21,13 +21,33 @@ repositories {
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+
+    // This is the Spring Boot integration: auto-configuration, application startup integration, and Flyway lifecycle support.
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    // This provides PostgreSQL-specific Flyway database support.
+    // With modern Flyway/Spring Boot 4, this remains a separate module
+    // and is required for reliable PostgreSQL migration support.
+    // Spring Boot’s Flyway starter exists in the 4.1.1 dependency set,
+    // while the PostgreSQL module is a separate Flyway dependency rather than a Spring Initializr checkbox
+    implementation 'org.flywaydb:flyway-database-postgresql'  // this is added manually and it is not present in the spring initializr site, start.spring.io
+
+    runtimeOnly 'org.postgresql:postgresql'
+
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-flyway-test'
+
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
+
     testCompileOnly 'org.projectlombok:lombok'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testAnnotationProcessor 'org.projectlombok:lombok'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
