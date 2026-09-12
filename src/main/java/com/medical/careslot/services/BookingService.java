@@ -1,4 +1,9 @@
 package com.medical.careslot.services;
 
-public class BookingService {
+import com.medical.careslot.api.bookings.ConfirmBookingResponse;
+
+import java.util.UUID;
+
+public interface BookingService {
+    ConfirmBookingResponse confirmHold(UUID uuid, UUID patientId, String bookingKey);
 }
