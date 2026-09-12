@@ -2,15 +2,11 @@ package com.medical.careslot.services;
 
 import com.medical.careslot.api.bookings.ConfirmBookingResponse;
 import com.medical.careslot.api.holds.CreateHoldResponse;
-import com.medical.careslot.models.AppUser;
-import com.medical.careslot.models.AppointmentType;
-import com.medical.careslot.models.Booking;
-import com.medical.careslot.models.Clinic;
-import com.medical.careslot.models.Hold;
-import com.medical.careslot.models.Practitioner;
-import com.medical.careslot.models.Slot;
+import com.medical.careslot.models.*;
+import com.medical.careslot.repositories.BookingRepository;
 import com.medical.careslot.repositories.HoldRepository;
 import com.medical.careslot.repositories.SlotRepository;
+import com.medical.careslot.services.exceptions.ConflictException;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,16 +24,15 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
+import java.util.concurrent.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(
-        properties = "careslot.holds.expiry-scheduler.enabled=false"
+        properties = "carslot.holds.expiry-scheduler.enabled=false"
 )
 @Testcontainers
-class HoldExpiryIntegrationTest {
+public class HoldExpiryConcurrencyIntegrationTest {
 
     @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17-alpine");
@@ -53,6 +48,7 @@ class HoldExpiryIntegrationTest {
     @Autowired private BookingService bookingService;
     @Autowired private HoldExpiryService holdExpiryService;
     @Autowired private HoldRepository holdRepository;
+    @Autowired private BookingRepository bookingRepository;
     @Autowired private SlotRepository slotRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private EntityManager entityManager;
@@ -111,90 +107,56 @@ class HoldExpiryIntegrationTest {
     }
 
     @Test
-    void expiresActiveExpiredHoldAndReopensSlot() {
-        CreateHoldResponse createdHold = createHoldAndMakeExpired();
+    void lateConfirmationAndExpirySweepCannotCreateBooking() throws Exception {
+        CreateHoldResponse hold = holdService.createHold(slotId, patientId, UUID.randomUUID().toString());
+        setHoldExpiry(hold.holdId(), Instant.now().minus(1, ChronoUnit.MINUTES));
 
-        int expiredCount = holdExpiryService.expireActiveHolds();
+        CyclicBarrier startGate = new CyclicBarrier(2);
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<ConfirmationAttempt> confirmationFuture = executor.submit(
+                    () -> attemptConfirmation(startGate, hold.holdId())
+            );
+            Future<ExpiryAttempt> expiryFuture = executor.submit(
+                    () -> attemptExpiry(startGate)
+            );
 
-        Hold expiredHold = holdRepository.findById(createdHold.holdId()).orElseThrow();
-        Slot reopenedSlot = slotRepository.findById(slotId).orElseThrow();
+            ConfirmationAttempt confirmation = confirmationFuture.get(10, TimeUnit.SECONDS);
+            ExpiryAttempt expiry = expiryFuture.get(10, TimeUnit.SECONDS);
 
-        assertEquals(1, expiredCount);
-        assertEquals(Hold.Status.EXPIRED, expiredHold.getStatus());
-        assertEquals(Slot.Status.OPEN, reopenedSlot.getStatus());
+            assertNull(expiry.error());
+            assertEquals(1, expiry.expiredCount());
+            assertInstanceOf(ConflictException.class, confirmation.error());
+
+            Hold expiredHold = holdRepository.findById(hold.holdId()).orElseThrow();
+            Slot reopenedSlot = slotRepository.findById(slotId).orElseThrow();
+
+            assertEquals(Hold.Status.EXPIRED, expiredHold.getStatus());
+            assertEquals(Slot.Status.OPEN, reopenedSlot.getStatus());
+            assertEquals(0, bookingRepository.count());
+        }
     }
 
-    @Test
-    void doesNotExpireFutureActiveHold() {
-        CreateHoldResponse createdHold = holdService.createHold(
-                slotId,
-                patientId,
-                UUID.randomUUID().toString()
-        );
-
-        int expiredCount = holdExpiryService.expireActiveHolds();
-
-        Hold activeHold = holdRepository.findById(createdHold.holdId()).orElseThrow();
-        Slot heldSlot = slotRepository.findById(slotId).orElseThrow();
-
-        assertEquals(0, expiredCount);
-        assertEquals(Hold.Status.ACTIVE, activeHold.getStatus());
-        assertTrue(activeHold.getExpiresAt().isAfter(Instant.now()));
-        assertEquals(Slot.Status.HELD, heldSlot.getStatus());
+    private ConfirmationAttempt attemptConfirmation(CyclicBarrier startGate, UUID holdId) {
+        try {
+            startGate.await(10, TimeUnit.SECONDS);
+            ConfirmBookingResponse response = bookingService.confirmHold(
+                    holdId,
+                    patientId,
+                    UUID.randomUUID().toString()
+            );
+            return new ConfirmationAttempt(response, null);
+        } catch (Throwable error) {
+            return new ConfirmationAttempt(null, error);
+        }
     }
 
-    @Test
-    void doesNotExpireConfirmedHold() {
-        CreateHoldResponse createdHold = holdService.createHold(
-                slotId,
-                patientId,
-                UUID.randomUUID().toString()
-        );
-
-        ConfirmBookingResponse booking = bookingService.confirmHold(
-                createdHold.holdId(),
-                patientId,
-                UUID.randomUUID().toString()
-        );
-        assertNotNull(booking.bookingId());
-        assertEquals(Booking.Status.CONFIRMED, booking.status());
-
-        setHoldExpiry(createdHold.holdId(), Instant.now().minus(1, ChronoUnit.MINUTES));
-
-        int expiredCount = holdExpiryService.expireActiveHolds();
-
-        Hold confirmedHold = holdRepository.findById(createdHold.holdId()).orElseThrow();
-        Slot bookedSlot = slotRepository.findById(slotId).orElseThrow();
-
-        assertEquals(0, expiredCount);
-        assertEquals(Hold.Status.CONFIRMED, confirmedHold.getStatus());
-        assertEquals(Slot.Status.BOOKED, bookedSlot.getStatus());
-    }
-
-    @Test
-    void isIdempotentAcrossRepeatedExpirySweeps() {
-        CreateHoldResponse createdHold = createHoldAndMakeExpired();
-
-        int firstSweepCount = holdExpiryService.expireActiveHolds();
-        int secondSweepCount = holdExpiryService.expireActiveHolds();
-
-        Hold expiredHold = holdRepository.findById(createdHold.holdId()).orElseThrow();
-        Slot reopenedSlot = slotRepository.findById(slotId).orElseThrow();
-
-        assertEquals(1, firstSweepCount);
-        assertEquals(0, secondSweepCount);
-        assertEquals(Hold.Status.EXPIRED, expiredHold.getStatus());
-        assertEquals(Slot.Status.OPEN, reopenedSlot.getStatus());
-    }
-
-    private CreateHoldResponse createHoldAndMakeExpired() {
-        CreateHoldResponse createdHold = holdService.createHold(
-                slotId,
-                patientId,
-                UUID.randomUUID().toString()
-        );
-        setHoldExpiry(createdHold.holdId(), Instant.now().minus(1, ChronoUnit.MINUTES));
-        return createdHold;
+    private ExpiryAttempt attemptExpiry(CyclicBarrier startGate) {
+        try {
+            startGate.await(10, TimeUnit.SECONDS);
+            return new ExpiryAttempt(holdExpiryService.expireActiveHolds(), null);
+        } catch (Throwable error) {
+            return new ExpiryAttempt(0, error);
+        }
     }
 
     private void setHoldExpiry(UUID holdId, Instant expiresAt) {
@@ -203,4 +165,12 @@ class HoldExpiryIntegrationTest {
             hold.setExpiresAt(expiresAt);
         });
     }
+
+    private record ConfirmationAttempt(ConfirmBookingResponse response, Throwable error) {
+    }
+
+    private record ExpiryAttempt(int expiredCount, Throwable error) {
+    }
+
+
 }

@@ -31,7 +31,9 @@ import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
+@SpringBootTest(
+        properties = "careslot.holds.expiry-scheduler.enabled=false"
+)
 @Testcontainers
 @ExtendWith(SpringExtension.class)
 class HoldBookingIntegrationTest {
