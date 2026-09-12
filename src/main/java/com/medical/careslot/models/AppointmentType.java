@@ -11,7 +11,8 @@ import java.util.UUID;
 // ==================== AppointmentType ====================
 @Getter
 @Setter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+//@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 @Entity
 @Table(name = "appointment_type")
 public class AppointmentType {

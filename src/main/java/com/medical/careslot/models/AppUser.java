@@ -11,7 +11,8 @@ import java.util.UUID;
 // ==================== AppUser ====================
 @Getter
 @Setter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+//@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 @Entity
 @Table(name = "app_user")
 public class AppUser {

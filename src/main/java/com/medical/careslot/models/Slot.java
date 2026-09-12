@@ -12,7 +12,8 @@ import java.util.UUID;
 // ==================== Slot ====================
 @Getter
 @Setter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+//@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 @Entity
 @Table(name = "slot")
 public class Slot {

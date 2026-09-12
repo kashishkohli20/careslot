@@ -13,7 +13,8 @@ import java.util.UUID;
 // ==================== Hold ====================
 @Getter
 @Setter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+//@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 @Entity
 @Table(name = "hold")
 public class Hold {

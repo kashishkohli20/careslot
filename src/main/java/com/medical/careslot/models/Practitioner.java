@@ -12,7 +12,8 @@ import java.util.UUID;
 // ==================== Practitioner ====================
 @Getter
 @Setter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+//@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 @Entity
 @Table(name = "practitioner")
 public class Practitioner {

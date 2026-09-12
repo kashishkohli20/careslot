@@ -1,10 +1,7 @@
 package com.medical.careslot.models;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 
 import java.time.Instant;
@@ -13,7 +10,10 @@ import java.util.UUID;
 // ==================== Booking ====================
 @Getter
 @Setter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+//@Builder
+//@AllArgsConstructor
+//@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 @Entity
 @Table(name = "booking")
 public class Booking {
@@ -31,8 +31,8 @@ public class Booking {
     @JoinColumn(name = "patient_id")
     private AppUser patient;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "hold_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "hold_id", nullable = false)
     private Hold hold;
 
     @Column(name = "idempotency_key", nullable = false, unique = true, length = 100)
