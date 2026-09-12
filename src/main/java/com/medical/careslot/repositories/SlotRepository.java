@@ -14,5 +14,5 @@ public interface SlotRepository extends JpaRepository<Slot, UUID> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM Slot s WHERE s.id = :slotId")
-    Optional<Slot> findBySlotIdForUpdate(@Param("slotId") UUID slotId);
+    Optional<Slot> findByIdForUpdate(@Param("slotId") UUID slotId);
 }

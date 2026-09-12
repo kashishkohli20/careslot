@@ -16,5 +16,5 @@ public interface HoldRepository extends JpaRepository<Hold, UUID> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT h FROM Hold h WHERE h.id = :holdId")
-    Optional<Hold> findByHoldIdAndUpdate(@Param("holdId") UUID holdId);
+    Optional<Hold> findByIdForUpdate(@Param("bookingId") UUID holdId);
 }
