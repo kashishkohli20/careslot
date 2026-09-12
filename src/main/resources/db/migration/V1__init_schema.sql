@@ -88,7 +88,7 @@ CREATE TABLE booking (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     slot_id UUID NOT NULL REFERENCES slot(id),
     patient_id UUID NOT NULL REFERENCES app_user(id),
-    hold_id UUID REFERENCES hold(id),
+    hold_id UUID NOT NULL REFERENCES hold(id),
     idempotency_key VARCHAR(100) NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'CONFIRMED'
         CHECK (status IN ('CONFIRMED', 'CANCELLED')),
