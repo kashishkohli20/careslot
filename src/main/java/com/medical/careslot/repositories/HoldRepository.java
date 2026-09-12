@@ -24,7 +24,7 @@ public interface HoldRepository extends JpaRepository<Hold, UUID> {
             value = """
                     SELECT * FROM Hold
                     WHERE status = 'ACTIVE'
-                    AND expiresAt <= :now
+                    AND expires_at <= :now
                     ORDER BY expires_at, id
                     LIMIT :batchSize
                     FOR UPDATE skip locked
